@@ -10,6 +10,7 @@ import java.util.List;
 import algorithms.DijkstraRegLC;
 import algorithms.Muse;
 import algorithms.MuseStar;
+import algorithms.Sdalt;
 import structures.GraphMultimodal;
 import structures.NFA;
 import structures.Toolbox;
@@ -19,6 +20,7 @@ public class QuerySolver {
 	private static String REGION;
 	private static int PARTITION;
 	private static int NFA_ID;
+	private static final int NUMBER_OF_LANDMARKS = 32;
 	private static final int DEPARTURE_TIME = 36000;
 
 	public static List<Query> loadQueries() throws IOException {
@@ -55,6 +57,7 @@ public class QuerySolver {
 		final String DATA_FILEPATH  = String.format("./src/dataset/%s/graph/%s_transit_data.txt", REGION, REGION);
 		final String NFA_FILEPATH = String.format("./src/dataset/%s/nfa/", REGION);
 		final String PARTITION_FILEPATH = String.format("./src/dataset/%s/graph/%s_nodes.%d", REGION, REGION, PARTITION);
+		final String LANDMARKS_FILEPATH = String.format("./src/dataset/%s/landmarks/%s", REGION, REGION);
 
 		final GraphMultimodal graph = new GraphMultimodal(GRAPH_FILEPATH);
 		graph.initializeTravelTimeFunctions(DATA_FILEPATH);
@@ -69,15 +72,18 @@ public class QuerySolver {
 		graph.loadOverlay(OVERLAY_FILEPATH);
 
 		final DijkstraRegLC dijkstra = new DijkstraRegLC(graph, nfa);
+		final Sdalt sdalt = new Sdalt(graph, nfa, NUMBER_OF_LANDMARKS);
 		final Muse muse = new Muse(graph, nfa);
 		final MuseStar museStar = new MuseStar(graph, nfa, 1.0);
 		final MuseStar museSV1 = new MuseStar(graph, nfa, 1.2);
 		final MuseStar museSV2 = new MuseStar(graph, nfa, 1.5);
 		final MuseStar museSV3 = new MuseStar(graph, nfa, 1.8);
+		
+		sdalt.loadPreprocessing(LANDMARKS_FILEPATH);
 
 		int index = 0;
 		long t;
-		double t1, t2, t3, t4, t5, t6;
+		double t1, t2, t3, t4, t5, t6, t7;
 
 		for (int i=0; i<queries.size(); i++) {
 			Query query = queries.get(i);
@@ -98,26 +104,31 @@ public class QuerySolver {
 			t1 = (System.nanoTime() - t)/1000000.0;
 			
 			t = System.nanoTime();
-			double cost2 = muse.computeShortestPath(source, state, target, DEPARTURE_TIME);
+			double cost2 = sdalt.computeShortestPath(source, state, target, DEPARTURE_TIME);
 			t2 = (System.nanoTime() - t)/1000000.0;
 
 			t = System.nanoTime();
-			double cost3 = museStar.computeShortestPath(source, state, target, DEPARTURE_TIME);
+			double cost3 = muse.computeShortestPath(source, state, target, DEPARTURE_TIME);
 			t3 = (System.nanoTime() - t)/1000000.0;
 
 			t = System.nanoTime();
-			double cost4 = museSV1.computeShortestPath(source, state, target, DEPARTURE_TIME);
+			double cost4 = museStar.computeShortestPath(source, state, target, DEPARTURE_TIME);
 			t4 = (System.nanoTime() - t)/1000000.0;
 
 			t = System.nanoTime();
-			double cost5 = museSV2.computeShortestPath(source, state, target, DEPARTURE_TIME);
+			double cost5 = museSV1.computeShortestPath(source, state, target, DEPARTURE_TIME);
 			t5 = (System.nanoTime() - t)/1000000.0;
 
 			t = System.nanoTime();
-			double cost6 = museSV3.computeShortestPath(source, state, target, DEPARTURE_TIME);
+			double cost6 = museSV2.computeShortestPath(source, state, target, DEPARTURE_TIME);
 			t6 = (System.nanoTime() - t)/1000000.0;
 
+			t = System.nanoTime();
+			double cost7 = museSV3.computeShortestPath(source, state, target, DEPARTURE_TIME);
+			t7 = (System.nanoTime() - t)/1000000.0;
+
 			double settledDijkstra = dijkstra.getTouchedNodes();
+			double settledSdalt = sdalt.getTouchedNodes();
 			double settledMuse = muse.getTouchedNodes();
 			double settledMuseStar = museStar.getTouchedNodes();
 			double settledMuseSV1 = museSV1.getTouchedNodes();
@@ -127,10 +138,11 @@ public class QuerySolver {
 			double distance = Toolbox.eucledianDistance(graph.nodes.get(source).latitude, graph.nodes.get(source).longitude,
 					graph.nodes.get(target).latitude, graph.nodes.get(target).longitude);
 
-			System.out.printf("%d,%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f\n",
+			System.out.printf("%d,%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n",
 					PARTITION, NFA_ID, distance,
-					cost1, cost2, cost3, cost4, cost5, cost6,
-					t1, t2, t3, t4, t5, t6,
+					cost1, cost2, cost3, cost4, cost5, cost6, cost7,
+					t1, t2, t3, t4, t5, t6, t7,
+					settledDijkstra/settledSdalt,
 					settledDijkstra/settledMuse,
 					settledDijkstra/settledMuseStar,
 					settledDijkstra/settledMuseSV1,

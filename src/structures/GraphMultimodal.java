@@ -27,7 +27,7 @@ public class GraphMultimodal {
 
 	public GraphMultimodal(String filepath) throws IOException {		
 		loadNodes(filepath + "_nodes.txt");
-		// loadEdges(filepath + "_edges.txt");
+		loadEdges(filepath + "_edges.txt");
 	}
 
 	public EdgeLabeled getEdge(int tail, int head) {
